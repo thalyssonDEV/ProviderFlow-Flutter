@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="maps_flutter_project"
+        android:label="maps_disp_moveis_project"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -31,9 +31,6 @@
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
-    <meta-data 
-            android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyCILQXExdhn8O-Li7sS9nPA-xWWsdlsHh8"/>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
          https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
