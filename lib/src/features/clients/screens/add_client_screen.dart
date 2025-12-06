@@ -4,6 +4,8 @@ import 'package:brasil_fields/brasil_fields.dart';
 import '../../../shared/database/database_helper.dart';
 import '../../../shared/utils/session_manager.dart';
 import '../../auth/widgets/custom_text_field.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'location_picker_screen.dart';
 
 class AddClientScreen extends StatefulWidget {
   const AddClientScreen({super.key});
@@ -37,6 +39,22 @@ class _AddClientScreenState extends State<AddClientScreen> {
     });
   }
 
+  // Open map picker and fill latitude/longitude
+  Future<void> _openMapPicker() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const LocationPickerScreen(),
+      ),
+    );
+
+    if (result is LatLng) {
+      _latController.text = result.latitude.toString();
+      _lngController.text = result.longitude.toString();
+      setState(() {});
+    }
+  }
+
   void _saveClient() async {
     if (_formKey.currentState!.validate()) {
       final providerId = SessionManager().loggedProviderId;
@@ -48,8 +66,8 @@ class _AddClientScreenState extends State<AddClientScreen> {
         cpf: _cpfController.text,
         phone: _phoneController.text,
         planType: _selectedPlan!,
-        latitude: double.parse(_latController.text),
-        longitude: double.parse(_lngController.text),
+        latitude: double.tryParse(_latController.text),
+        longitude: double.tryParse(_lngController.text),
       );
 
       if (!mounted) return;
@@ -107,7 +125,7 @@ class _AddClientScreenState extends State<AddClientScreen> {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 20.0),
                       child: DropdownButtonFormField<String>(
-                        value: _selectedPlan,
+                        initialValue: _selectedPlan,
                         decoration: InputDecoration(
                           labelText: 'Selecione o Plano',
                           prefixIcon: const Icon(Icons.wifi),
@@ -131,8 +149,21 @@ class _AddClientScreenState extends State<AddClientScreen> {
                       ),
                     ),
                     const Divider(color: Colors.grey, height: 32),
-                    const Text("Localização (Obrigatório)", style: TextStyle(color: Colors.grey)),
-                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("Localização", style: TextStyle(color: Colors.grey)),
+                        TextButton.icon(
+                          onPressed: _openMapPicker,
+                          icon: const Icon(Icons.map, color: Color(0xFF1E88E5)),
+                          label: const Text(
+                            "Selecionar no Mapa",
+                            style: TextStyle(color: Color(0xFF1E88E5), fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
                     Row(
                       children: [
                         Expanded(
@@ -159,7 +190,7 @@ class _AddClientScreenState extends State<AddClientScreen> {
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
-                      height: 50,
+                      height: 56,
                       child: ElevatedButton(
                         onPressed: _saveClient,
                         child: const Text('SALVAR CLIENTE'),

@@ -37,7 +37,7 @@ class _ClientListScreenState extends State<ClientListScreen> {
                 margin: const EdgeInsets.only(bottom: 12),
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: Colors.blueAccent.withOpacity(0.2),
+                    backgroundColor: Colors.blueAccent.withValues(alpha: 0.2),
                     child: const Icon(Icons.person, color: Colors.blueAccent),
                   ),
                   title: Text(c['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),

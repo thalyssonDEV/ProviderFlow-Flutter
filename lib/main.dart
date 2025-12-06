@@ -5,6 +5,7 @@ import 'src/features/home/home_screen.dart';
 import 'src/features/clients/screens/add_client_screen.dart';
 import 'src/features/clients/screens/client_list_screen.dart';
 import 'src/shared/utils/app_routes.dart';
+import 'src/features/home/map_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -66,7 +67,7 @@ class MyApp extends StatelessWidget {
         AppRoutes.home: (context) => const HomeScreen(),
         AppRoutes.addClient: (context) => const AddClientScreen(),
         AppRoutes.listClients: (context) => const ClientListScreen(),
-        AppRoutes.map: (context) => const Scaffold(body: Center(child: Text("Mapa (Em breve)"))),
+        AppRoutes.map: (context) => const MapScreen(),
       },
     );
   }
