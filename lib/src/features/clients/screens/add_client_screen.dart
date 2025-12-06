@@ -1,3 +1,4 @@
+import '../../../shared/utils/phone_input_formatter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:brasil_fields/brasil_fields.dart';
@@ -107,45 +108,63 @@ class _AddClientScreenState extends State<AddClientScreen> {
                       ],
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'Obrigatório';
-                        if (!CPFValidator.isValid(v)) return 'CPF Inválido';
                         return null;
-                      }
+                      },
                     ),
+                    const SizedBox(height: 12),
                     CustomTextField(
-                      controller: _phoneController, 
-                      label: 'Telefone', 
-                      icon: Icons.phone, 
+                      controller: _phoneController,
+                      label: 'Telefone',
+                      icon: Icons.phone,
                       keyboardType: TextInputType.phone,
                       inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        TelefoneInputFormatter(),
+                        PhoneInputFormatter(),
                       ],
-                      validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Obrigatório';
+                        final digits = PhoneInputFormatter.extractDigits(v);
+                        if (digits.length < 10 || digits.length > 11) {
+                          return 'Telefone deve ter 10 ou 11 dígitos';
+                        }
+                        return null;
+                      },
                     ),
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 20.0),
+                      padding: const EdgeInsets.only(bottom: 20.0, top: 8.0),
                       child: DropdownButtonFormField<String>(
                         initialValue: _selectedPlan,
                         decoration: InputDecoration(
-                          labelText: 'Selecione o Plano',
+                          labelText: 'Plano de Internet',
                           prefixIcon: const Icon(Icons.wifi),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
+                          ),
                           filled: true,
-                          fillColor: const Color(0xFF2D2D44),
+                          fillColor: Theme.of(context).colorScheme.surface,
                         ),
-                        dropdownColor: const Color(0xFF2D2D44),
-                        items: _planOptions.map((String plan) {
-                          return DropdownMenuItem<String>(
-                            value: plan,
-                            child: Text(plan),
-                          );
-                        }).toList(),
+                        items: _planOptions
+                            .map((String plan) => DropdownMenuItem<String>(
+                                  value: plan,
+                                  child: Text(
+                                    plan,
+                                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                                  ),
+                                ))
+                            .toList(),
                         onChanged: (newValue) {
                           setState(() {
                             _selectedPlan = newValue;
                           });
                         },
                         validator: (value) => value == null ? 'Selecione um plano' : null,
+                        dropdownColor: Theme.of(context).colorScheme.surface,
                       ),
                     ),
                     const Divider(color: Colors.grey, height: 32),

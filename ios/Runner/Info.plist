@@ -48,5 +48,10 @@
 	<!-- Google Maps API Key -->
 	<key>GMSApiKey</key>
 	<string>YOUR_IOS_API_KEY_HERE</string>
+	<!-- Location permissions for Geolocator -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Precisamos da sua localização para marcar o endereço do cliente no mapa.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Precisamos da sua localização para marcar o endereço do cliente no mapa.</string>
 </dict>
 </plist>

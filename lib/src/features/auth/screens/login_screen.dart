@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:flutter/services.dart';
 import 'package:maps_disp_moveis_project/src/shared/database/database_helper.dart';
 import 'package:maps_disp_moveis_project/src/shared/utils/app_routes.dart';
@@ -44,11 +45,16 @@ class _LoginScreenState extends State<LoginScreen> {
            ),
         );
 
-        Future.delayed(const Duration(seconds: 1), () {
-            if (mounted) {
-                Navigator.pushReplacementNamed(context, AppRoutes.home);
+         Future.delayed(const Duration(seconds: 1), () async {
+            // Request location permission after successful login
+            LocationPermission permission = await Geolocator.checkPermission();
+            if (permission == LocationPermission.denied) {
+              await Geolocator.requestPermission();
             }
-        });
+
+            if (!mounted) return;
+            Navigator.pushReplacementNamed(context, AppRoutes.home);
+      });
 
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -5,4 +5,5 @@ class AppRoutes {
   static const addClient = '/add-client';
   static const listClients = '/list-clients';
   static const map = '/map';
+  static const reports = '/reports';
 }

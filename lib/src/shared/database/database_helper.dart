@@ -131,4 +131,54 @@ class DatabaseHelper {
       orderBy: 'name ASC',
     );
   }
+
+  Future<int> updateClient({
+    required int id,
+    required String name,
+    required String cpf,
+    required String phone,
+    required String planType,
+    double? latitude,
+    double? longitude,
+  }) async {
+    final db = await instance.database;
+    return await db.update(
+      'clients',
+      {
+        'name': name,
+        'cpf': cpf,
+        'phone': phone,
+        'plan_type': planType,
+        'latitude': latitude,
+        'longitude': longitude,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> deleteClient(int id) async {
+    final db = await instance.database;
+    return await db.delete('clients', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<Map<String, dynamic>> getProviderStats(int providerId) async {
+    final db = await instance.database;
+    final totalClients = Sqflite.firstIntValue(await db.rawQuery(
+      'SELECT COUNT(*) FROM clients WHERE provider_id = ?',
+      [providerId],
+    )) ?? 0;
+
+    final plansResult = await db.rawQuery('''
+      SELECT plan_type, COUNT(*) as count
+      FROM clients
+      WHERE provider_id = ?
+      GROUP BY plan_type
+    ''', [providerId]);
+
+    return {
+      'total': totalClients,
+      'by_plan': plansResult,
+    };
+  }
 }
