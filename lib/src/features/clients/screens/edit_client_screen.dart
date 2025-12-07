@@ -1,9 +1,14 @@
-import '../../../shared/utils/phone_input_formatter.dart';
 import 'package:flutter/material.dart';
-import '../../../shared/database/database_helper.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../../../shared/utils/input_formatters.dart';
+import '../../../shared/utils/validators.dart';
+import '../controllers/client_controller.dart';
+import '../models/client_model.dart';
+import 'location_picker_screen.dart';
 
 class EditClientScreen extends StatefulWidget {
-  final Map<String, dynamic> client;
+  final ClientModel client;
+
   const EditClientScreen({super.key, required this.client});
 
   @override
@@ -12,49 +17,78 @@ class EditClientScreen extends StatefulWidget {
 
 class _EditClientScreenState extends State<EditClientScreen> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _nameController;
-  late TextEditingController _cpfController;
-  late TextEditingController _phoneController;
-  late TextEditingController _latController;
-  late TextEditingController _lngController;
+  late final TextEditingController _nameController;
+  late final TextEditingController _cpfController;
+  late final TextEditingController _phoneController;
+  late final TextEditingController _latController;
+  late final TextEditingController _lngController;
   String? _selectedPlan;
+  LatLng? _selectedLocation;
+
+  final _controller = ClientController();
+  List<String> _planOptions = [];
 
   @override
   void initState() {
     super.initState();
-    final c = widget.client;
-    _nameController = TextEditingController(text: c['name'] ?? '');
-    _cpfController = TextEditingController(text: c['cpf'] ?? '');
-    _phoneController = TextEditingController(text: c['phone'] ?? '');
-    _latController = TextEditingController(text: (c['latitude']?.toString() ?? ''));
-    _lngController = TextEditingController(text: (c['longitude']?.toString() ?? ''));
-    _selectedPlan = c['plan_type'];
+    _nameController = TextEditingController(text: widget.client.name);
+    _cpfController = TextEditingController(text: widget.client.cpf);
+    _phoneController = TextEditingController(text: widget.client.phone);
+    _latController = TextEditingController(text: widget.client.latitude?.toString() ?? '');
+    _lngController = TextEditingController(text: widget.client.longitude?.toString() ?? '');
+    _selectedPlan = widget.client.planType;
+    
+    if (widget.client.latitude != null && widget.client.longitude != null) {
+      _selectedLocation = LatLng(widget.client.latitude!, widget.client.longitude!);
+    }
+    
+    _loadPlans();
   }
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _cpfController.dispose();
-    _phoneController.dispose();
-    _latController.dispose();
-    _lngController.dispose();
-    super.dispose();
+  void _loadPlans() async {
+    final plans = await _controller.getPlans();
+    setState(() {
+      _planOptions = plans;
+    });
   }
 
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    final id = widget.client['id'] as int;
-    await DatabaseHelper.instance.updateClient(
-      id: id,
-      name: _nameController.text.trim(),
-      cpf: _cpfController.text.trim(),
-      phone: _phoneController.text.trim(),
-      planType: _selectedPlan ?? widget.client['plan_type'] as String,
-      latitude: double.tryParse(_latController.text.trim()),
-      longitude: double.tryParse(_lngController.text.trim()),
+  Future<void> _pickLocation() async {
+    final LatLng? picked = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const LocationPickerScreen()),
     );
-    if (!mounted) return;
-    Navigator.pop(context, true);
+
+    if (picked != null) {
+      setState(() {
+        _selectedLocation = picked;
+        _latController.text = picked.latitude.toStringAsFixed(6);
+        _lngController.text = picked.longitude.toStringAsFixed(6);
+      });
+    }
+  }
+
+  void _saveClient() async {
+    if (_formKey.currentState!.validate()) {
+      final updated = ClientModel(
+        id: widget.client.id,
+        providerId: widget.client.providerId,
+        name: _nameController.text,
+        cpf: _cpfController.text,
+        phone: _phoneController.text,
+        planType: _selectedPlan ?? widget.client.planType,
+        latitude: double.tryParse(_latController.text),
+        longitude: double.tryParse(_lngController.text),
+      );
+
+      final success = await _controller.updateClient(updated);
+      if (!mounted) return;
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cliente atualizado!'), backgroundColor: Colors.green),
+        );
+        Navigator.pop(context, true);
+      }
+    }
   }
 
   @override
@@ -69,60 +103,105 @@ class _EditClientScreenState extends State<EditClientScreen> {
             children: [
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Nome'),
-                validator: (v) => v == null || v.isEmpty ? 'Obrigatório' : null,
+                decoration: const InputDecoration(
+                  labelText: 'Nome Completo',
+                  prefixIcon: Icon(Icons.person),
+                  hintText: 'Ex: João Silva',
+                ),
+                inputFormatters: [NameInputFormatter()],
+                textCapitalization: TextCapitalization.words,
+                validator: Validators.validateName,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _cpfController,
-                decoration: const InputDecoration(labelText: 'CPF'),
-                validator: (v) => v == null || v.isEmpty ? 'Obrigatório' : null,
+                decoration: const InputDecoration(
+                  labelText: 'CPF',
+                  prefixIcon: Icon(Icons.badge),
+                  hintText: '000.000.000-00',
+                ),
+                inputFormatters: [CpfInputFormatter()],
+                keyboardType: TextInputType.number,
+                validator: Validators.validateCpf,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _phoneController,
-                decoration: const InputDecoration(labelText: 'Telefone'),
-                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'Telefone',
+                  prefixIcon: Icon(Icons.phone),
+                  hintText: '(00) 00000-0000',
+                ),
                 inputFormatters: [PhoneInputFormatter()],
-                validator: (v) {
-                  if (v == null || v.isEmpty) return 'Obrigatório';
-                  final digits = PhoneInputFormatter.extractDigits(v);
-                  if (digits.length < 10 || digits.length > 11) {
-                    return 'Telefone deve ter 10 ou 11 dígitos';
-                  }
-                  return null;
-                },
+                keyboardType: TextInputType.phone,
+                validator: Validators.validatePhone,
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _selectedPlan,
-                decoration: const InputDecoration(labelText: 'Plano de Internet'),
-                items: <String>['50 Mega','100 Mega','300 Mega','500 Mega','1 Giga']
+                decoration: const InputDecoration(
+                  labelText: 'Plano',
+                  prefixIcon: Icon(Icons.wifi),
+                ),
+                items: _planOptions
                     .map((p) => DropdownMenuItem(value: p, child: Text(p)))
                     .toList(),
                 onChanged: (v) => setState(() => _selectedPlan = v),
                 validator: (v) => v == null ? 'Selecione um plano' : null,
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _latController,
-                decoration: const InputDecoration(labelText: 'Latitude'),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _lngController,
-                decoration: const InputDecoration(labelText: 'Longitude'),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-              ),
               const SizedBox(height: 20),
-              SizedBox(
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: _save,
-                  child: const Text('Salvar Alterações'),
+              const Divider(),
+              const SizedBox(height: 12),
+              const Text(
+                'Localização',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _pickLocation,
+                icon: const Icon(Icons.map),
+                label: Text(_selectedLocation == null ? 'Selecionar no Mapa' : 'Alterar Localização'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
                 ),
-              )
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _latController,
+                      decoration: const InputDecoration(
+                        labelText: 'Latitude',
+                        prefixIcon: Icon(Icons.location_on),
+                      ),
+                      keyboardType: TextInputType.number,
+                      readOnly: true,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _lngController,
+                      decoration: const InputDecoration(
+                        labelText: 'Longitude',
+                        prefixIcon: Icon(Icons.location_on),
+                      ),
+                      keyboardType: TextInputType.number,
+                      readOnly: true,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                height: 56,
+                child: FilledButton.icon(
+                  onPressed: _saveClient,
+                  icon: const Icon(Icons.save),
+                  label: const Text('Salvar Alterações'),
+                ),
+              ),
             ],
           ),
         ),

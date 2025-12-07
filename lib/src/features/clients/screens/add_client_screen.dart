@@ -1,11 +1,10 @@
-import '../../../shared/utils/phone_input_formatter.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:brasil_fields/brasil_fields.dart';
-import '../../../shared/database/database_helper.dart';
-import '../../../shared/utils/session_manager.dart';
-import '../../auth/widgets/custom_text_field.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../../../shared/utils/session_manager.dart';
+import '../../../shared/utils/input_formatters.dart';
+import '../../../shared/utils/validators.dart';
+import '../controllers/client_controller.dart';
+import '../models/client_model.dart';
 import 'location_picker_screen.dart';
 
 class AddClientScreen extends StatefulWidget {
@@ -22,8 +21,11 @@ class _AddClientScreenState extends State<AddClientScreen> {
   final _phoneController = TextEditingController();
   final _latController = TextEditingController();
   final _lngController = TextEditingController();
-  List<String> _planOptions = [];
   String? _selectedPlan;
+  LatLng? _selectedLocation;
+
+  final _controller = ClientController();
+  List<String> _planOptions = [];
   bool _isLoadingPlans = true;
 
   @override
@@ -33,26 +35,25 @@ class _AddClientScreenState extends State<AddClientScreen> {
   }
 
   void _loadPlans() async {
-    final plans = await DatabaseHelper.instance.getPlans();
+    final plans = await _controller.getPlans();
     setState(() {
       _planOptions = plans;
       _isLoadingPlans = false;
     });
   }
 
-  // Open map picker and fill latitude/longitude
-  Future<void> _openMapPicker() async {
-    final result = await Navigator.push(
+  Future<void> _pickLocation() async {
+    final LatLng? picked = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const LocationPickerScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const LocationPickerScreen()),
     );
 
-    if (result is LatLng) {
-      _latController.text = result.latitude.toString();
-      _lngController.text = result.longitude.toString();
-      setState(() {});
+    if (picked != null) {
+      setState(() {
+        _selectedLocation = picked;
+        _latController.text = picked.latitude.toStringAsFixed(6);
+        _lngController.text = picked.longitude.toStringAsFixed(6);
+      });
     }
   }
 
@@ -61,7 +62,7 @@ class _AddClientScreenState extends State<AddClientScreen> {
       final providerId = SessionManager().loggedProviderId;
       if (providerId == null) return;
 
-      await DatabaseHelper.instance.createClient(
+      final newClient = ClientModel(
         providerId: providerId,
         name: _nameController.text,
         cpf: _cpfController.text,
@@ -71,11 +72,15 @@ class _AddClientScreenState extends State<AddClientScreen> {
         longitude: double.tryParse(_lngController.text),
       );
 
+      final success = await _controller.addClient(newClient);
+
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cliente salvo com sucesso!'), backgroundColor: Colors.green),
-      );
-      Navigator.pop(context);
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cliente salvo com sucesso!'), backgroundColor: Colors.green),
+        );
+        Navigator.pop(context, true);
+      }
     }
   }
 
@@ -83,142 +88,122 @@ class _AddClientScreenState extends State<AddClientScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Novo Cliente')),
-      body: _isLoadingPlans 
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    CustomTextField(
-                      controller: _nameController, 
-                      label: 'Nome Completo', 
-                      icon: Icons.person, 
-                      validator: (v) => v!.isEmpty ? 'Obrigatório' : null
-                    ),
-                    CustomTextField(
-                      controller: _cpfController, 
-                      label: 'CPF', 
-                      icon: Icons.badge, 
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        CpfInputFormatter(),
-                      ],
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'Obrigatório';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    CustomTextField(
-                      controller: _phoneController,
-                      label: 'Telefone',
-                      icon: Icons.phone,
-                      keyboardType: TextInputType.phone,
-                      inputFormatters: [
-                        PhoneInputFormatter(),
-                      ],
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'Obrigatório';
-                        final digits = PhoneInputFormatter.extractDigits(v);
-                        if (digits.length < 10 || digits.length > 11) {
-                          return 'Telefone deve ter 10 ou 11 dígitos';
-                        }
-                        return null;
-                      },
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 20.0, top: 8.0),
-                      child: DropdownButtonFormField<String>(
-                        initialValue: _selectedPlan,
-                        decoration: InputDecoration(
-                          labelText: 'Plano de Internet',
-                          prefixIcon: const Icon(Icons.wifi),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
-                          ),
-                          filled: true,
-                          fillColor: Theme.of(context).colorScheme.surface,
-                        ),
-                        items: _planOptions
-                            .map((String plan) => DropdownMenuItem<String>(
-                                  value: plan,
-                                  child: Text(
-                                    plan,
-                                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-                                  ),
-                                ))
-                            .toList(),
-                        onChanged: (newValue) {
-                          setState(() {
-                            _selectedPlan = newValue;
-                          });
-                        },
-                        validator: (value) => value == null ? 'Selecione um plano' : null,
-                        dropdownColor: Theme.of(context).colorScheme.surface,
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            children: [
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Nome Completo',
+                  prefixIcon: Icon(Icons.person),
+                  hintText: 'Ex: João Silva',
+                ),
+                inputFormatters: [NameInputFormatter()],
+                textCapitalization: TextCapitalization.words,
+                validator: Validators.validateName,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _cpfController,
+                decoration: const InputDecoration(
+                  labelText: 'CPF',
+                  prefixIcon: Icon(Icons.badge),
+                  hintText: '000.000.000-00',
+                ),
+                inputFormatters: [CpfInputFormatter()],
+                keyboardType: TextInputType.number,
+                validator: Validators.validateCpf,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _phoneController,
+                decoration: const InputDecoration(
+                  labelText: 'Telefone',
+                  prefixIcon: Icon(Icons.phone),
+                  hintText: '(00) 00000-0000',
+                ),
+                inputFormatters: [PhoneInputFormatter()],
+                keyboardType: TextInputType.phone,
+                validator: Validators.validatePhone,
+              ),
+              const SizedBox(height: 12),
+              _isLoadingPlans
+                  ? const Center(child: CircularProgressIndicator())
+                  : DropdownButtonFormField<String>(
+                      initialValue: _selectedPlan,
+                      decoration: const InputDecoration(
+                        labelText: 'Plano',
+                        prefixIcon: Icon(Icons.wifi),
                       ),
+                      items: _planOptions
+                          .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                          .toList(),
+                      onChanged: (v) => setState(() => _selectedPlan = v),
+                      validator: (v) => v == null ? 'Selecione um plano' : null,
                     ),
-                    const Divider(color: Colors.grey, height: 32),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text("Localização", style: TextStyle(color: Colors.grey)),
-                        TextButton.icon(
-                          onPressed: _openMapPicker,
-                          icon: const Icon(Icons.map, color: Color(0xFF1E88E5)),
-                          label: const Text(
-                            "Selecionar no Mapa",
-                            style: TextStyle(color: Color(0xFF1E88E5), fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: CustomTextField(
-                            controller: _latController, 
-                            label: 'Latitude', 
-                            icon: Icons.location_on, 
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                            validator: (v) => v!.isEmpty ? 'Obrigatório' : null
-                          )
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: CustomTextField(
-                            controller: _lngController, 
-                            label: 'Longitude', 
-                            icon: Icons.location_on, 
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                            validator: (v) => v!.isEmpty ? 'Obrigatório' : null
-                          )
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: _saveClient,
-                        child: const Text('SALVAR CLIENTE'),
-                      ),
-                    )
-                  ],
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 12),
+              const Text(
+                'Localização',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _pickLocation,
+                icon: const Icon(Icons.map),
+                label: Text(_selectedLocation == null ? 'Selecionar no Mapa' : 'Local Selecionado'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
                 ),
               ),
-            ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _latController,
+                      decoration: const InputDecoration(
+                        labelText: 'Latitude',
+                        prefixIcon: Icon(Icons.location_on),
+                      ),
+                      keyboardType: TextInputType.number,
+                      readOnly: true,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _lngController,
+                      decoration: const InputDecoration(
+                        labelText: 'Longitude',
+                        prefixIcon: Icon(Icons.location_on),
+                      ),
+                      keyboardType: TextInputType.number,
+                      readOnly: true,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                height: 56,
+                child: FilledButton.icon(
+                  onPressed: _saveClient,
+                  icon: const Icon(Icons.save),
+                  label: const Text('Salvar Cliente'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

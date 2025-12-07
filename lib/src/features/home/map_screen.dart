@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../shared/database/database_helper.dart';
 import '../../shared/utils/session_manager.dart';
+import 'controllers/map_controller.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -12,127 +12,40 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  Set<Marker> _markers = {};
-  bool _isLoading = true;
+  final MapController _controller = MapController();
 
   @override
   void initState() {
     super.initState();
-    _loadClientMarkers();
-  }
-
-  Future<void> _loadClientMarkers() async {
     final providerId = SessionManager().loggedProviderId;
-    if (providerId == null) {
-      setState(() {
-        _isLoading = false;
-      });
-      return;
-    }
-
-    final clients = await DatabaseHelper.instance.getClientsByProvider(providerId);
-    final Set<Marker> newMarkers = {};
-
-    for (var client in clients) {
-      final double? lat = (client['latitude'] as num?)?.toDouble();
-      final double? lng = (client['longitude'] as num?)?.toDouble();
-      if (lat == null || lng == null) continue;
-
-      newMarkers.add(
-        Marker(
-          markerId: MarkerId(client['id'].toString()),
-          position: LatLng(lat, lng),
-          onTap: () => _showClientDetails(client),
-        ),
-      );
-    }
-
-    setState(() {
-      _markers = newMarkers;
-      _isLoading = false;
-    });
-  }
-
-  Future<void> _openWhatsApp(String phone) async {
-    String cleanPhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
-    if (cleanPhone.isEmpty) return;
-    // Ensure country code 55 exactly once
-    cleanPhone = cleanPhone.replaceFirst(RegExp(r'^\+'), '');
-    final hasCountry = cleanPhone.startsWith('55');
-    final fullNumber = hasCountry ? cleanPhone : '55$cleanPhone';
-
-    // Optional: prefill a message
-    final message = Uri.encodeComponent('Olá, tudo bem?');
-
-    // Try native WhatsApp scheme first (consumer)
-    final nativeUri = Uri.parse('whatsapp://send?phone=$fullNumber&text=$message');
-    // Try WhatsApp Business if consumer not found
-    final businessUri = Uri.parse('whatsapp-business://send?phone=$fullNumber&text=$message');
-    final webUri = Uri.parse('https://wa.me/$fullNumber');
-    try {
-      if (await canLaunchUrl(nativeUri)) {
-        await launchUrl(nativeUri, mode: LaunchMode.externalApplication);
-        return;
-      }
-      if (await canLaunchUrl(businessUri)) {
-        await launchUrl(businessUri, mode: LaunchMode.externalApplication);
-        return;
-      }
-      // Fallback to web URL
-      if (await canLaunchUrl(webUri)) {
-        await launchUrl(webUri, mode: LaunchMode.externalApplication);
-        return;
-      }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('WhatsApp não disponível neste dispositivo.')),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erro ao tentar abrir o WhatsApp.')),
-      );
+    if (providerId != null) {
+      _controller.loadMarkers(providerId, _showClientDetails);
     }
   }
 
-  void _showClientDetails(Map<String, dynamic> client) {
+  void _showClientDetails(Map<String, dynamic> clientData) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
         return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardTheme.color,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 10,
-                offset: const Offset(0, -2),
-              )
-            ],
-          ),
+          padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  margin: const EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
               Row(
                 children: [
                   CircleAvatar(
-                    radius: 26,
-                    backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                    child: Icon(Icons.person, color: Theme.of(context).colorScheme.primary, size: 28),
+                    radius: 30,
+                    backgroundColor: Theme.of(context).colorScheme.primary.withAlpha(51),
+                    child: Icon(
+                      Icons.person,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 32,
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -140,59 +53,59 @@ class _MapScreenState extends State<MapScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          client['name'],
-                          style: TextStyle(
-                            fontSize: 22,
+                          clientData['name']?.toString() ?? 'Cliente',
+                          style: const TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.onSurface,
+                            fontSize: 20,
                           ),
                         ),
+                        const SizedBox(height: 4),
                         Text(
-                          'CPF: ${client['cpf']}',
-                          style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
+                          clientData['plan_type']?.toString() ?? 'Sem plano',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ],
               ),
-              const Divider(height: 32),
-              _buildInfoRow(context, Icons.wifi, 'Plano Contratado', client['plan_type']),
-              const SizedBox(height: 16),
-              _buildInfoRow(context, Icons.phone, 'Telefone', client['phone']),
-              const SizedBox(height: 32),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        side: BorderSide(color: Colors.grey.withValues(alpha: 0.5)),
-                      ),
-                      child: Text(
-                        'FECHAR',
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-                      ),
+              const Divider(height: 24),
+              _buildInfoRow(Icons.phone, 'Telefone', clientData['phone']?.toString() ?? 'N/A', context),
+              const SizedBox(height: 12),
+              _buildInfoRow(Icons.badge, 'CPF', clientData['cpf']?.toString() ?? 'N/A', context),
+              const SizedBox(height: 12),
+              _buildInfoRow(
+                Icons.location_on,
+                'Coordenadas',
+                '${clientData['latitude']?.toString() ?? 'N/A'}, ${clientData['longitude']?.toString() ?? 'N/A'}',
+                context,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    final phone = clientData['phone']?.toString();
+                    if (phone != null && phone.isNotEmpty) {
+                      _openWhatsApp(phone);
+                    }
+                  },
+                  icon: const Icon(Icons.chat, color: Colors.white),
+                  label: const Text(
+                    'Falar com Cliente',
+                    style: TextStyle(fontSize: 16, color: Colors.white),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF25D366),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _openWhatsApp(client['phone']),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF25D366),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
-                      ),
-                      icon: const Icon(Icons.chat),
-                      label: const Text('WHATSAPP', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ],
           ),
@@ -201,47 +114,59 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  Widget _buildInfoRow(BuildContext context, IconData icon, String label, String value) {
+  Widget _buildInfoRow(IconData icon, String label, String value, BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 22, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
-        const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
-            ),
-            Text(
-              value,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface),
-            ),
-          ],
+        Icon(icon, size: 20, color: Colors.grey),
+        const SizedBox(width: 12),
+        Text(
+          '$label: ',
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withAlpha(179)),
+          ),
         ),
       ],
     );
   }
 
+  Future<void> _openWhatsApp(String phone) async {
+    final uri = Uri.parse('https://wa.me/$phone');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível abrir o WhatsApp')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mapa Geral'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : GoogleMap(
-              initialCameraPosition: const CameraPosition(
-                target: LatLng(-5.092, -42.8038),
-                zoom: 12,
-              ),
-              markers: _markers,
-              myLocationEnabled: true,
-              myLocationButtonEnabled: true,
+      appBar: AppBar(title: const Text('Mapa Geral')),
+      body: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          if (_controller.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          return GoogleMap(
+            initialCameraPosition: const CameraPosition(
+              target: LatLng(-5.092, -42.8038),
+              zoom: 12,
             ),
+            markers: _controller.markers,
+            myLocationEnabled: true,
+            myLocationButtonEnabled: true,
+            mapType: MapType.normal,
+          );
+        },
+      ),
     );
   }
 }
