@@ -133,7 +133,7 @@ class _AddClientScreenState extends State<AddClientScreen> {
               _isLoadingPlans
                   ? const Center(child: CircularProgressIndicator())
                   : DropdownButtonFormField<String>(
-                      initialValue: _selectedPlan,
+                      value: _selectedPlan,
                       decoration: const InputDecoration(
                         labelText: 'Plano',
                         prefixIcon: Icon(Icons.wifi),
