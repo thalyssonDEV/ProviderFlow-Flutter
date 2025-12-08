@@ -9,7 +9,8 @@ class ThemeController extends ChangeNotifier {
   ThemeMode get themeMode => _themeMode;
 
   Future<void> init() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = 
+    await SharedPreferences.getInstance();
     final saved = prefs.getString('theme_mode');
     switch (saved) {
       case 'light':
