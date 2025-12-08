@@ -224,7 +224,7 @@ class _EditClientScreenState extends State<EditClientScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                initialValue: _selectedPlan,
+                value: _selectedPlan,
                 decoration: const InputDecoration(
                   labelText: 'Plano',
                   prefixIcon: Icon(Icons.wifi),

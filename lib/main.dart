@@ -23,7 +23,7 @@ class MyApp extends StatelessWidget {
       animation: ThemeController.instance,
       builder: (context, _) {
         return MaterialApp(
-      title: 'App Provedores',
+      title: 'Provider Flow',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeController.instance.themeMode,
       theme: ThemeData(
