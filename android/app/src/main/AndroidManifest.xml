@@ -36,7 +36,7 @@
         <!-- Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyBZXp6CBYmoruCer41WTVgv7_UAmoTfRqM" />
+            android:value="COLOQUE_SUA_API_AQUI" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
@@ -53,3 +53,4 @@
         <package android:name="com.whatsapp.w4b" />
     </queries>
 </manifest>
+
