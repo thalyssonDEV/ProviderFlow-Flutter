@@ -18,7 +18,12 @@ class DatabaseHelper {
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    return await openDatabase(
+      path,
+      version: 2,
+      onCreate: _createDB,
+      onUpgrade: _onUpgrade,
+    );
   }
 
   Future _createDB(Database db, int version) async {
@@ -36,10 +41,16 @@ class DatabaseHelper {
       provider_id INTEGER NOT NULL,
       cpf TEXT NOT NULL,
       name TEXT NOT NULL,
-      latitude REAL NOT NULL, 
-      longitude REAL NOT NULL,
+      latitude REAL, 
+      longitude REAL,
       plan_type TEXT NOT NULL,
       phone TEXT,
+      street TEXT,
+      number TEXT,
+      neighborhood TEXT,
+      city TEXT,
+      state TEXT,
+      zip_code TEXT,
       FOREIGN KEY (provider_id) REFERENCES providers (id) ON DELETE CASCADE
     )
     ''');
@@ -56,6 +67,18 @@ class DatabaseHelper {
     await db.insert('plans', {'name': '300 Mega'});
     await db.insert('plans', {'name': '500 Mega'});
     await db.insert('plans', {'name': '1 Giga'});
+  }
+
+  Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Adiciona novos campos de endereço
+      await db.execute('ALTER TABLE clients ADD COLUMN street TEXT');
+      await db.execute('ALTER TABLE clients ADD COLUMN number TEXT');
+      await db.execute('ALTER TABLE clients ADD COLUMN neighborhood TEXT');
+      await db.execute('ALTER TABLE clients ADD COLUMN city TEXT');
+      await db.execute('ALTER TABLE clients ADD COLUMN state TEXT');
+      await db.execute('ALTER TABLE clients ADD COLUMN zip_code TEXT');
+    }
   }
 
   String _generateHash(String password) {
@@ -109,6 +132,12 @@ class DatabaseHelper {
     required String planType,
     double? latitude,
     double? longitude,
+    String? street,
+    String? number,
+    String? neighborhood,
+    String? city,
+    String? state,
+    String? zipCode,
   }) async {
     final db = await instance.database;
     return await db.insert('clients', {
@@ -119,6 +148,12 @@ class DatabaseHelper {
       'plan_type': planType,
       'latitude': latitude,
       'longitude': longitude,
+      'street': street,
+      'number': number,
+      'neighborhood': neighborhood,
+      'city': city,
+      'state': state,
+      'zip_code': zipCode,
     });
   }
 
@@ -140,6 +175,12 @@ class DatabaseHelper {
     required String planType,
     double? latitude,
     double? longitude,
+    String? street,
+    String? number,
+    String? neighborhood,
+    String? city,
+    String? state,
+    String? zipCode,
   }) async {
     final db = await instance.database;
     return await db.update(
@@ -151,6 +192,12 @@ class DatabaseHelper {
         'plan_type': planType,
         'latitude': latitude,
         'longitude': longitude,
+        'street': street,
+        'number': number,
+        'neighborhood': neighborhood,
+        'city': city,
+        'state': state,
+        'zip_code': zipCode,
       },
       where: 'id = ?',
       whereArgs: [id],

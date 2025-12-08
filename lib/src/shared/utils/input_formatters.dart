@@ -63,6 +63,33 @@ class PhoneInputFormatter extends TextInputFormatter {
   }
 }
 
+class CepInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text.replaceAll(RegExp(r'\D'), '');
+    
+    if (text.length > 8) {
+      return oldValue;
+    }
+
+    String formatted = '';
+    for (int i = 0; i < text.length; i++) {
+      if (i == 5) {
+        formatted += '-';
+      }
+      formatted += text[i];
+    }
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
 class NameInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(

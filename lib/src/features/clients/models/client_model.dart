@@ -7,6 +7,12 @@ class ClientModel {
   final String planType;
   final double? latitude;
   final double? longitude;
+  final String? street;
+  final String? number;
+  final String? neighborhood;
+  final String? city;
+  final String? state;
+  final String? zipCode;
 
   ClientModel({
     this.id,
@@ -17,6 +23,12 @@ class ClientModel {
     required this.planType,
     this.latitude,
     this.longitude,
+    this.street,
+    this.number,
+    this.neighborhood,
+    this.city,
+    this.state,
+    this.zipCode,
   });
 
   factory ClientModel.fromMap(Map<String, dynamic> map) {
@@ -29,6 +41,12 @@ class ClientModel {
       planType: map['plan_type'],
       latitude: map['latitude'],
       longitude: map['longitude'],
+      street: map['street'],
+      number: map['number'],
+      neighborhood: map['neighborhood'],
+      city: map['city'],
+      state: map['state'],
+      zipCode: map['zip_code'],
     );
   }
 
@@ -42,6 +60,22 @@ class ClientModel {
       'plan_type': planType,
       'latitude': latitude,
       'longitude': longitude,
+      'street': street,
+      'number': number,
+      'neighborhood': neighborhood,
+      'city': city,
+      'state': state,
+      'zip_code': zipCode,
     };
+  }
+
+  String get fullAddress {
+    final parts = <String>[];
+    if (street != null && street!.isNotEmpty) parts.add(street!);
+    if (number != null && number!.isNotEmpty) parts.add(number!);
+    if (neighborhood != null && neighborhood!.isNotEmpty) parts.add(neighborhood!);
+    if (city != null && city!.isNotEmpty) parts.add(city!);
+    if (state != null && state!.isNotEmpty) parts.add(state!);
+    return parts.join(', ');
   }
 }
