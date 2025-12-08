@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../shared/utils/session_manager.dart';
+import '../clients/controllers/client_controller.dart';
 import 'controllers/map_controller.dart';
 
 class MapScreen extends StatefulWidget {
@@ -12,160 +13,303 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  final MapController _controller = MapController();
+  final _mapController = MapController();
+  final _clientController = ClientController();
+  final _nameSearchController = TextEditingController();
+  bool _showFilters = false;
 
   @override
   void initState() {
     super.initState();
+    _loadData();
+  }
+
+  @override
+  void dispose() {
+    _nameSearchController.dispose();
+    super.dispose();
+  }
+
+  void _loadData() async {
     final providerId = SessionManager().loggedProviderId;
     if (providerId != null) {
-      _controller.loadMarkers(providerId, _showClientDetails);
+      await _clientController.loadClients(providerId);
     }
+    await _mapController.loadMarkers(onMarkerTap: _showClientDetails);
   }
 
-  void _showClientDetails(Map<String, dynamic> clientData) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return Container(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: Theme.of(context).colorScheme.primary.withAlpha(51),
-                    child: Icon(
-                      Icons.person,
-                      color: Theme.of(context).colorScheme.primary,
-                      size: 32,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          clientData['name']?.toString() ?? 'Cliente',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          clientData['plan_type']?.toString() ?? 'Sem plano',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const Divider(height: 24),
-              _buildInfoRow(Icons.phone, 'Telefone', clientData['phone']?.toString() ?? 'N/A', context),
-              const SizedBox(height: 12),
-              _buildInfoRow(Icons.badge, 'CPF', clientData['cpf']?.toString() ?? 'N/A', context),
-              const SizedBox(height: 12),
-              _buildInfoRow(
-                Icons.location_on,
-                'Coordenadas',
-                '${clientData['latitude']?.toString() ?? 'N/A'}, ${clientData['longitude']?.toString() ?? 'N/A'}',
-                context,
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    final phone = clientData['phone']?.toString();
-                    if (phone != null && phone.isNotEmpty) {
-                      _openWhatsApp(phone);
-                    }
-                  },
-                  icon: const Icon(Icons.chat, color: Colors.white),
-                  label: const Text(
-                    'Falar com Cliente',
-                    style: TextStyle(fontSize: 16, color: Colors.white),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF25D366),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String label, String value, BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: Colors.grey),
-        const SizedBox(width: 12),
-        Text(
-          '$label: ',
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withAlpha(179)),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _openWhatsApp(String phone) async {
-    final uri = Uri.parse('https://wa.me/$phone');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+  Future<void> _openWhatsApp(BuildContext context, String phone) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'[^\d]'), '');
+    final url = Uri.parse('https://wa.me/55$cleanPhone');
+    
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {
-      if (!mounted) return;
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Não foi possível abrir o WhatsApp')),
+        const SnackBar(content: Text('Não foi possível abrir o WhatsApp'), backgroundColor: Colors.red),
       );
     }
+  }
+
+  void _showClientDetails(String clientId) {
+    final client = _mapController.allClients.firstWhere((c) => c.id.toString() == clientId);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) {
+          return SingleChildScrollView(
+            controller: scrollController,
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 30,
+                        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                        child: Text(
+                          client.name[0].toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              client.name,
+                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                            ),
+                            Text(
+                              'Plano: ${client.planType}',
+                              style: TextStyle(color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  const Divider(),
+                  const SizedBox(height: 12),
+                  _buildInfoRow(Icons.badge, 'CPF', client.cpf),
+                  _buildInfoRow(Icons.phone, 'Telefone', client.phone),
+                  if (client.fullAddress.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    _buildInfoRow(Icons.location_on, 'Endereço', client.fullAddress),
+                  ],
+                  if (client.latitude != null && client.longitude != null) ...[
+                    const SizedBox(height: 8),
+                    _buildInfoRow(
+                      Icons.map,
+                      'Coordenadas',
+                      '${client.latitude!.toStringAsFixed(6)}, ${client.longitude!.toStringAsFixed(6)}',
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: FilledButton.icon(
+                      onPressed: () => _openWhatsApp(context, client.phone),
+                      icon: const Icon(Icons.message),
+                      label: const Text('Conversar no WhatsApp'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF25D366),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: Colors.grey[600]),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mapa Geral')),
-      body: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          if (_controller.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          return GoogleMap(
-            initialCameraPosition: const CameraPosition(
-              target: LatLng(-5.092, -42.8038),
-              zoom: 12,
+      appBar: AppBar(
+        title: const Text('Mapa de Clientes'),
+        actions: [
+          IconButton(
+            icon: Icon(_showFilters ? Icons.filter_alt : Icons.filter_alt_outlined),
+            onPressed: () => setState(() => _showFilters = !_showFilters),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            height: _showFilters ? null : 0,
+            child: _showFilters
+                ? Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: _nameSearchController,
+                          decoration: InputDecoration(
+                            labelText: 'Pesquisar por nome',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _nameSearchController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    onPressed: () {
+                                      _nameSearchController.clear();
+                                      _mapController.setNameFilter('', _loadData);
+                                    },
+                                  )
+                                : null,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onChanged: (value) {
+                            _mapController.setNameFilter(value, _loadData);
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        AnimatedBuilder(
+                          animation: _clientController,
+                          builder: (context, _) {
+                            return DropdownButtonFormField<String?>(
+                              initialValue: _mapController.selectedPlanFilter,
+                              decoration: InputDecoration(
+                                labelText: 'Filtrar por plano',
+                                prefixIcon: const Icon(Icons.wifi),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              items: [
+                                const DropdownMenuItem(value: null, child: Text('Todos os planos')),
+                                ..._clientController.clients
+                                    .map((c) => c.planType)
+                                    .toSet()
+                                    .map((plan) => DropdownMenuItem(value: plan, child: Text(plan))),
+                              ],
+                              onChanged: (value) {
+                                _mapController.setPlanFilter(value, _loadData);
+                              },
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+          Expanded(
+            child: AnimatedBuilder(
+              animation: _mapController,
+              builder: (context, _) {
+                if (_mapController.isLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (_mapController.markers.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.map_outlined, size: 80, color: Colors.grey[400]),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Nenhum cliente encontrado no mapa',
+                          style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return GoogleMap(
+                  initialCameraPosition: _mapController.initialPosition,
+                  markers: _mapController.markers,
+                  onMapCreated: (controller) {
+                    // Controller do Google Maps criado
+                    for (var marker in _mapController.markers) {
+                      if (marker.onTap != null) {
+                        // Markers já tem onTap configurado via infoWindow
+                      }
+                    }
+                  },
+                  myLocationEnabled: true,
+                  myLocationButtonEnabled: true,
+                  onTap: (position) {},
+                );
+              },
             ),
-            markers: _controller.markers,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: true,
-            mapType: MapType.normal,
-          );
-        },
+          ),
+        ],
       ),
     );
   }

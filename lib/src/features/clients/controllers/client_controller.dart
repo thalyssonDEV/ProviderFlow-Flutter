@@ -4,8 +4,11 @@ import '../models/client_model.dart';
 
 class ClientController extends ChangeNotifier {
   List<ClientModel> clients = [];
+  List<ClientModel> filteredClients = [];
   bool isLoading = false;
   String? errorMessage;
+  String searchQuery = '';
+  String? selectedPlanFilter;
 
   Future<void> loadClients(int providerId) async {
     isLoading = true;
@@ -13,12 +16,43 @@ class ClientController extends ChangeNotifier {
     try {
       final list = await DatabaseHelper.instance.getClientsByProvider(providerId);
       clients = list.map((m) => ClientModel.fromMap(m)).toList();
+      _applyFilters();
     } catch (e) {
       errorMessage = 'Erro ao carregar: $e';
     } finally {
       isLoading = false;
       notifyListeners();
     }
+  }
+
+  void setSearchQuery(String query) {
+    searchQuery = query.toLowerCase();
+    _applyFilters();
+  }
+
+  void setPlanFilter(String? plan) {
+    selectedPlanFilter = plan;
+    _applyFilters();
+  }
+
+  void clearFilters() {
+    searchQuery = '';
+    selectedPlanFilter = null;
+    _applyFilters();
+  }
+
+  void _applyFilters() {
+    filteredClients = clients.where((client) {
+      final matchesSearch = searchQuery.isEmpty ||
+          client.name.toLowerCase().contains(searchQuery) ||
+          client.cpf.contains(searchQuery);
+      
+      final matchesPlan = selectedPlanFilter == null ||
+          client.planType == selectedPlanFilter;
+
+      return matchesSearch && matchesPlan;
+    }).toList();
+    notifyListeners();
   }
 
   Future<bool> addClient(ClientModel client) async {
@@ -31,6 +65,12 @@ class ClientController extends ChangeNotifier {
         planType: client.planType,
         latitude: client.latitude,
         longitude: client.longitude,
+        street: client.street,
+        number: client.number,
+        neighborhood: client.neighborhood,
+        city: client.city,
+        state: client.state,
+        zipCode: client.zipCode,
       );
       return true;
     } catch (e) {
@@ -48,6 +88,12 @@ class ClientController extends ChangeNotifier {
         planType: client.planType,
         latitude: client.latitude,
         longitude: client.longitude,
+        street: client.street,
+        number: client.number,
+        neighborhood: client.neighborhood,
+        city: client.city,
+        state: client.state,
+        zipCode: client.zipCode,
       );
       return true;
     } catch (e) {
